@@ -5,6 +5,73 @@
 ;
 ; Practice stuff
 ;
+.ifndef ENABLE_TRAINER_SCENE
+	.define ENABLE_TRAINER_SCENE 1
+.endif
+
+.ifndef TRAINER_HIJACK_WORLD
+	.define TRAINER_HIJACK_WORLD World1
+.endif
+
+.ifndef TRAINER_HIJACK_LEVEL
+	.define TRAINER_HIJACK_LEVEL Level1
+.endif
+
+TRAINER_FLAG_ACTIVE = $01
+TRAINER_FLAG_HUD_DIRTY = $02
+
+TRAINER_DRILL_PRESS_A = 0
+TRAINER_DRILL_HOLD_B_PRESS_A = 1
+TRAINER_DRILL_COUNT = 2
+
+TRAINER_STATE_WAIT_APPROACH = 0
+TRAINER_STATE_HOLD_PHASE = 1
+TRAINER_STATE_PRESS_WINDOW = 2
+TRAINER_STATE_RESULT = 3
+
+TRAINER_RESULT_NONE = 0
+TRAINER_RESULT_HIT = 1
+TRAINER_RESULT_EARLY = 2
+TRAINER_RESULT_LATE = 3
+TRAINER_RESULT_RELEASE_EARLY = 4
+TRAINER_RESULT_TOO_LONG = 5
+
+TRAINER_RESULT_FRAMES = 30
+TRAINER_MARKER_START_X = $28
+TRAINER_MARKER_GATE_X = $88
+TRAINER_MARKER_Y = $C0
+TRAINER_MARKER_SPEED = 2
+TRAINER_DEFAULT_HOLD_FRAMES = 3
+TRAINER_DEFAULT_WINDOW_FRAMES = 1
+
+TrainerFlags = WRAM_TrainerFlags
+TrainerDrill = WRAM_TrainerDrill
+TrainerState = WRAM_TrainerState
+TrainerMarkerX = WRAM_TrainerMarkerX
+TrainerPressTimer = WRAM_TrainerPressTimer
+TrainerHoldCounter = WRAM_TrainerHoldCounter
+TrainerResult = WRAM_TrainerResult
+TrainerResultTimer = WRAM_TrainerResultTimer
+TrainerTotalAttempts = WRAM_TrainerTotalAttempts
+TrainerHits = WRAM_TrainerHits
+TrainerMisses = WRAM_TrainerMisses
+TrainerStreak = WRAM_TrainerStreak
+TrainerBestStreak = WRAM_TrainerBestStreak
+TrainerAccuracy = WRAM_TrainerAccuracy
+TrainerPrevInput = WRAM_TrainerPrevInput
+TrainerStartPage = WRAM_TrainerStartPage
+TrainerStartX = WRAM_TrainerStartX
+TrainerStartY = WRAM_TrainerStartY
+TrainerStartYHigh = WRAM_TrainerStartYHigh
+TrainerHoldFrames = WRAM_TrainerHoldFrames
+TrainerWindowFrames = WRAM_TrainerWindowFrames
+TrainerInputNew = WRAM_TrainerInputNew
+TrainerHudResultC0 = WRAM_TrainerHudResultC0
+TrainerHudResultC1 = WRAM_TrainerHudResultC1
+TrainerHudResultC2 = WRAM_TrainerHudResultC2
+TrainerHudResultC3 = WRAM_TrainerHudResultC3
+TrainerCurrInput = WRAM_TrainerCurrInput
+
 quick_resume_0:
 	.byte $A5, $00, $00, $00, $00, $00, $00, $00 ; Base for 0
 	.byte $26, $90, $DD, $FC, $47, $BF, $30, $00 ; Base for 100
@@ -929,6 +996,9 @@ PracticeOnFrameInner:
 		ora JoypadBitMask
 		sta LastInputBits
 		jsr ReadJoypads
+		lda TrainerFlags
+		and #TRAINER_FLAG_ACTIVE
+		bne @exit
 		lda JoypadBitMask
 		ora SavedJoypadBits
 		beq @pause_things
@@ -1285,6 +1355,12 @@ noredraw:
 		jmp UpdateStatusInput
 
 RedrawUserVars:
+		lda TrainerFlags
+		and #TRAINER_FLAG_ACTIVE
+		beq @normal_practice_hud
+		jsr TrainerRedrawHud
+		jmp UpdateStatusInput
+@normal_practice_hud:
 		lda WRAM_UserFramesLeft
 		bne noredraw_dec
 		ldy VRAM_Buffer1_Offset
@@ -1468,6 +1544,7 @@ ProcessLevelLoad:
 		sta WRAM_LoadedLevel
 		lda WorldNumber
 		sta WRAM_LoadedWorld
+		jsr TrainerHandleLevelLoad
 		jsr AdvanceToRule
 		lda OperMode
 		beq @done
@@ -2137,6 +2214,525 @@ RenderIntermediateTimeInner:
 @dontshow:
     	rts
 
+TrainerHandleLevelLoad:
+.if ENABLE_TRAINER_SCENE
+		lda WorldNumber
+		cmp #TRAINER_HIJACK_WORLD
+		bne @disable_trainer
+		lda LevelNumber
+		cmp #TRAINER_HIJACK_LEVEL
+		bne @disable_trainer
+		jsr TrainerInit
+		rts
+.endif
+@disable_trainer:
+		jsr TrainerDeactivate
+		rts
+
+TrainerDeactivate:
+		lda #0
+		sta TrainerFlags
+		sta TrainerPrevInput
+		rts
+
+TrainerSetHudDirty:
+		lda TrainerFlags
+		ora #TRAINER_FLAG_HUD_DIRTY
+		sta TrainerFlags
+		rts
+
+TrainerInit:
+		lda #TRAINER_FLAG_ACTIVE
+		sta TrainerFlags
+		lda #TRAINER_DRILL_PRESS_A
+		sta TrainerDrill
+		lda #TRAINER_DEFAULT_HOLD_FRAMES
+		sta TrainerHoldFrames
+		lda #TRAINER_DEFAULT_WINDOW_FRAMES
+		sta TrainerWindowFrames
+		lda #0
+		sta TrainerPrevInput
+		jsr TrainerResetStats
+		jmp TrainerResetAttempt
+
+TrainerResetStats:
+		lda #0
+		sta TrainerTotalAttempts
+		sta TrainerHits
+		sta TrainerMisses
+		sta TrainerStreak
+		sta TrainerBestStreak
+		sta TrainerAccuracy
+		sta TrainerResult
+		jmp TrainerSetHudDirty
+
+TrainerResetAttempt:
+		lda #0
+		sta TrainerPressTimer
+		sta TrainerHoldCounter
+		sta TrainerResultTimer
+		lda #TRAINER_STATE_WAIT_APPROACH
+		sta TrainerState
+		lda #TRAINER_MARKER_START_X
+		sta TrainerMarkerX
+		jmp TrainerSetHudDirty
+
+TrainerAdvanceMarker:
+		lda TrainerMarkerX
+		clc
+		adc #TRAINER_MARKER_SPEED
+		cmp #TRAINER_MARKER_GATE_X
+		bcc @save_marker
+		lda #TRAINER_MARKER_GATE_X
+		sta TrainerMarkerX
+		sec
+		rts
+@save_marker:
+		sta TrainerMarkerX
+		clc
+		rts
+
+TrainerRecalcAccuracy:
+		lda TrainerTotalAttempts
+		bne @compute
+		lda #0
+		sta TrainerAccuracy
+		rts
+@compute:
+		lda #0
+		sta $00
+		sta $01
+		ldx #100
+@mul_more:
+		clc
+		lda $00
+		adc TrainerHits
+		sta $00
+		bcc @no_carry
+		inc $01
+@no_carry:
+		dex
+		bne @mul_more
+		ldx #0
+@divide_more:
+		lda $01
+		bne @can_subtract
+		lda $00
+		cmp TrainerTotalAttempts
+		bcc @div_done
+@can_subtract:
+		sec
+		lda $00
+		sbc TrainerTotalAttempts
+		sta $00
+		lda $01
+		sbc #0
+		sta $01
+		inx
+		cpx #101
+		bcc @divide_more
+@div_done:
+		stx TrainerAccuracy
+		rts
+
+TrainerSetHitResult:
+		inc TrainerTotalAttempts
+		inc TrainerHits
+		inc TrainerStreak
+		lda TrainerStreak
+		cmp TrainerBestStreak
+		bcc @skip_best
+		sta TrainerBestStreak
+@skip_best:
+		jsr TrainerRecalcAccuracy
+		lda #TRAINER_RESULT_HIT
+		bne TrainerFinishResult
+
+TrainerSetMissResult:
+		pha
+		inc TrainerTotalAttempts
+		inc TrainerMisses
+		lda #0
+		sta TrainerStreak
+		jsr TrainerRecalcAccuracy
+		pla
+
+TrainerFinishResult:
+		sta TrainerResult
+		lda #TRAINER_STATE_RESULT
+		sta TrainerState
+		lda #0
+		sta TrainerPressTimer
+		lda #TRAINER_RESULT_FRAMES
+		sta TrainerResultTimer
+		jmp TrainerSetHudDirty
+
+TrainerHandleWait:
+		jsr TrainerAdvanceMarker
+		bcc @not_reached_gate
+		lda TrainerDrill
+		beq @arm_press_window
+		lda #TRAINER_STATE_HOLD_PHASE
+		sta TrainerState
+		lda #0
+		sta TrainerHoldCounter
+		jsr TrainerSetHudDirty
+		jmp TrainerHandleHold
+@arm_press_window:
+		lda #TRAINER_STATE_PRESS_WINDOW
+		sta TrainerState
+		lda #0
+		sta TrainerPressTimer
+		jsr TrainerSetHudDirty
+		jmp TrainerHandlePressWindow
+@not_reached_gate:
+		lda TrainerInputNew
+		and #A_Button
+		beq @done
+		lda #TRAINER_RESULT_EARLY
+		jmp TrainerSetMissResult
+@done:
+		rts
+
+TrainerHandleHold:
+		lda TrainerInputNew
+		and #A_Button
+		beq @check_b_hold
+		lda #TRAINER_RESULT_EARLY
+		jmp TrainerSetMissResult
+@check_b_hold:
+		lda TrainerCurrInput
+		and #B_Button
+		bne @still_holding
+		lda #TRAINER_RESULT_RELEASE_EARLY
+		jmp TrainerSetMissResult
+@still_holding:
+		inc TrainerHoldCounter
+		lda TrainerHoldCounter
+		cmp TrainerHoldFrames
+		bcc @done
+		lda #TRAINER_STATE_PRESS_WINDOW
+		sta TrainerState
+		lda #0
+		sta TrainerPressTimer
+		jsr TrainerSetHudDirty
+@done:
+		rts
+
+TrainerHandlePressWindow:
+		lda TrainerDrill
+		beq @check_a_press
+		lda TrainerCurrInput
+		and #B_Button
+		beq @check_a_press
+		lda #TRAINER_RESULT_TOO_LONG
+		jmp TrainerSetMissResult
+@check_a_press:
+		lda TrainerInputNew
+		and #A_Button
+		beq @no_new_a
+		jmp TrainerSetHitResult
+@no_new_a:
+		lda #TRAINER_RESULT_LATE
+		jmp TrainerSetMissResult
+
+TrainerHandleResult:
+		lda TrainerResult
+		cmp #TRAINER_RESULT_LATE
+		bne @check_timer
+		lda TrainerPressTimer
+		bne @check_timer
+		lda TrainerInputNew
+		and #A_Button
+		beq @maybe_move
+		lda #1
+		sta TrainerPressTimer
+		bne @check_timer
+@maybe_move:
+		lda TrainerMarkerX
+		cmp #$E8
+		bcs @check_timer
+		clc
+		adc #TRAINER_MARKER_SPEED
+		sta TrainerMarkerX
+@check_timer:
+		lda TrainerResultTimer
+		beq @reset_attempt
+		dec TrainerResultTimer
+		bne @done
+@reset_attempt:
+		jsr TrainerResetAttempt
+@done:
+		rts
+
+TrainerDrawSprites:
+		; Gate icon: small mario (2x2) at fixed X
+		lda #TRAINER_MARKER_Y
+		sta Sprite_Data+$E0
+		sta Sprite_Data+$E4
+		clc
+		adc #$08
+		sta Sprite_Data+$E8
+		sta Sprite_Data+$EC
+		lda #$32
+		sta Sprite_Data+$E1
+		lda #$33
+		sta Sprite_Data+$E5
+		lda #$34
+		sta Sprite_Data+$E9
+		lda #$35
+		sta Sprite_Data+$ED
+		lda #$00
+		sta Sprite_Data+$E2
+		sta Sprite_Data+$E6
+		sta Sprite_Data+$EA
+		sta Sprite_Data+$EE
+		lda #TRAINER_MARKER_GATE_X
+		sta Sprite_Data+$E3
+		clc
+		adc #$08
+		sta Sprite_Data+$E7
+		lda #TRAINER_MARKER_GATE_X
+		sta Sprite_Data+$EB
+		clc
+		adc #$08
+		sta Sprite_Data+$EF
+
+		; Moving marker: small mario (2x2)
+		lda #TRAINER_MARKER_Y
+		sta Sprite_Data+$F0
+		sta Sprite_Data+$F4
+		clc
+		adc #$08
+		sta Sprite_Data+$F8
+		sta Sprite_Data+$FC
+		ldx #0
+		lda TrainerState
+		cmp #TRAINER_STATE_WAIT_APPROACH
+		bne @marker_tiles_ready
+		lda TrainerMarkerX
+		cmp #TRAINER_MARKER_GATE_X
+		bcs @marker_tiles_ready
+		lda FrameCounter
+		lsr
+		lsr
+		and #$03
+		cmp #$03
+		bne @anim_frame_ok
+		lda #$01
+@anim_frame_ok:
+		asl
+		asl
+		tax
+@marker_tiles_ready:
+		lda TrainerMarkerAnimTiles, x
+		sta Sprite_Data+$F1
+		lda TrainerMarkerAnimTiles+1, x
+		sta Sprite_Data+$F5
+		lda TrainerMarkerAnimTiles+2, x
+		sta Sprite_Data+$F9
+		lda TrainerMarkerAnimTiles+3, x
+		sta Sprite_Data+$FD
+		lda #$01
+		sta Sprite_Data+$F2
+		sta Sprite_Data+$F6
+		sta Sprite_Data+$FA
+		sta Sprite_Data+$FE
+		lda TrainerMarkerX
+		sta Sprite_Data+$F3
+		clc
+		adc #$08
+		sta Sprite_Data+$F7
+		lda TrainerMarkerX
+		sta Sprite_Data+$FB
+		clc
+		adc #$08
+		sta Sprite_Data+$FF
+		rts
+
+TrainerOnFrame:
+		lda TrainerFlags
+		and #TRAINER_FLAG_ACTIVE
+		bne @trainer_active
+		jmp @exit
+@trainer_active:
+		lda JoypadBitMask
+		ora SavedJoypadBits
+		sta TrainerCurrInput
+		lda OperMode
+		cmp #GameModeValue
+		bne @store_input_and_exit
+		lda TrainerPrevInput
+		eor #$ff
+		and TrainerCurrInput
+		sta TrainerInputNew
+		lda TrainerInputNew
+		and #Select_Button
+		beq @check_start
+		; Keep SELECT as a no-op while Drill 1 is isolated for timing validation.
+		jsr TrainerResetAttempt
+@check_start:
+		lda TrainerInputNew
+		and #Start_Button
+		beq @check_game_subroutine
+		jsr TrainerResetStats
+		jsr TrainerResetAttempt
+@check_game_subroutine:
+		lda GameEngineSubroutine
+		cmp #8
+		bne @draw_and_store
+		lda TrainerState
+		cmp #TRAINER_STATE_WAIT_APPROACH
+		bne @chk_hold
+		jsr TrainerHandleWait
+		jmp @draw_and_store
+@chk_hold:
+		cmp #TRAINER_STATE_HOLD_PHASE
+		bne @chk_press
+		jsr TrainerHandleHold
+		jmp @draw_and_store
+@chk_press:
+		cmp #TRAINER_STATE_PRESS_WINDOW
+		bne @chk_result
+		jsr TrainerHandlePressWindow
+		jmp @draw_and_store
+@chk_result:
+		cmp #TRAINER_STATE_RESULT
+		bne @draw_and_store
+		jsr TrainerHandleResult
+@draw_and_store:
+		jsr TrainerDrawSprites
+@store_input_and_exit:
+		lda TrainerCurrInput
+		sta TrainerPrevInput
+@exit:
+		jmp ReturnBank
+
+TrainerHudLine1:
+		.byte $20, $82, $16
+		.byte "TRN D0 N0 W0 RES ---- "
+TrainerHudLine2:
+		.byte $20, $A2, $19
+		.byte "H000 M000 S000 B000      "
+
+TrainerResultText:
+		.byte "-", "-", "-", "-"
+		.byte "H", "I", "T", " "
+		.byte "E", "A", "R", "L"
+		.byte "L", "A", "T", "E"
+		.byte "R", "E", "L", " "
+		.byte "L", "O", "N", "G"
+
+TrainerMarkerAnimTiles:
+		.byte $32, $33, $34, $35 ; walk frame 1
+		.byte $36, $37, $38, $39 ; walk frame 2
+		.byte $3A, $37, $3B, $3C ; walk frame 3
+
+TrainerWriteThreeDigits:
+		sta $00
+		stx $02
+		lda $00
+		jsr DivByTen
+		sta $01
+		txa
+		jsr DivByTen
+		sta $03
+		ldy $02
+		txa
+		sta VRAM_Buffer1, y
+		iny
+		lda $03
+		sta VRAM_Buffer1, y
+		iny
+		lda $01
+		sta VRAM_Buffer1, y
+		rts
+
+TrainerRedrawHud:
+		lda TrainerFlags
+		and #TRAINER_FLAG_HUD_DIRTY
+		bne @draw
+		rts
+@draw:
+		ldy VRAM_Buffer1_Offset
+		sty $02
+		ldx #0
+@copy_line1:
+		lda TrainerHudLine1, x
+		sta VRAM_Buffer1, y
+		inx
+		iny
+		cpx #$19
+		bne @copy_line1
+		ldx #0
+@copy_line2:
+		lda TrainerHudLine2, x
+		sta VRAM_Buffer1, y
+		inx
+		iny
+		cpx #$1C
+		bne @copy_line2
+		lda #0
+		sta VRAM_Buffer1, y
+		sty VRAM_Buffer1_Offset
+
+		ldy $02
+		lda TrainerDrill
+		clc
+		adc #1
+		sta VRAM_Buffer1+8, y
+		lda TrainerHoldFrames
+		sta VRAM_Buffer1+11, y
+		lda TrainerWindowFrames
+		sta VRAM_Buffer1+14, y
+
+		lda TrainerResult
+		asl
+		asl
+		tax
+		lda TrainerResultText, x
+		sta VRAM_Buffer1+20, y
+		lda TrainerResultText+1, x
+		sta VRAM_Buffer1+21, y
+		lda TrainerResultText+2, x
+		sta VRAM_Buffer1+22, y
+		lda TrainerResultText+3, x
+		sta VRAM_Buffer1+23, y
+
+		tya
+		clc
+		adc #$1C
+		tay
+		tya
+		clc
+		adc #1
+		tax
+		lda TrainerHits
+		jsr TrainerWriteThreeDigits
+		tya
+		clc
+		adc #6
+		tax
+		lda TrainerMisses
+		jsr TrainerWriteThreeDigits
+		tya
+		clc
+		adc #$0B
+		tax
+		lda TrainerStreak
+		jsr TrainerWriteThreeDigits
+		tya
+		clc
+		adc #$10
+		tax
+		lda TrainerBestStreak
+		jsr TrainerWriteThreeDigits
+
+		lda TrainerFlags
+		and #(TRAINER_FLAG_HUD_DIRTY^$ff)
+		sta TrainerFlags
+		rts
+
 EndOfCastle:
 		lda WRAM_Timer+1
 		cmp #$EE ; FUCK HACK
@@ -2163,4 +2759,3 @@ EndOfCastle:
 		beq @is_end
 @exit:
 		jmp ReturnBank
-

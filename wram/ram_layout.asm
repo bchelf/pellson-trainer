@@ -71,6 +71,64 @@ WRAM_IsContraMode:
 WRAM_Temp:
 	.res $64, $00
 
+;
+; Trainer scene state (dedicated, do not reuse as scratch)
+;
+WRAM_TrainerFlags:
+	.byte $00
+WRAM_TrainerDrill:
+	.byte $00
+WRAM_TrainerState:
+	.byte $00
+WRAM_TrainerMarkerX:
+	.byte $00
+WRAM_TrainerPressTimer:
+	.byte $00
+WRAM_TrainerHoldCounter:
+	.byte $00
+WRAM_TrainerResult:
+	.byte $00
+WRAM_TrainerResultTimer:
+	.byte $00
+WRAM_TrainerTotalAttempts:
+	.byte $00
+WRAM_TrainerHits:
+	.byte $00
+WRAM_TrainerMisses:
+	.byte $00
+WRAM_TrainerStreak:
+	.byte $00
+WRAM_TrainerBestStreak:
+	.byte $00
+WRAM_TrainerAccuracy:
+	.byte $00
+WRAM_TrainerPrevInput:
+	.byte $00
+WRAM_TrainerStartPage:
+	.byte $00
+WRAM_TrainerStartX:
+	.byte $00
+WRAM_TrainerStartY:
+	.byte $00
+WRAM_TrainerStartYHigh:
+	.byte $00
+WRAM_TrainerHoldFrames:
+	.byte $00
+WRAM_TrainerWindowFrames:
+	.byte $00
+WRAM_TrainerInputNew:
+	.byte $00
+WRAM_TrainerHudResultC0:
+	.byte $00
+WRAM_TrainerHudResultC1:
+	.byte $00
+WRAM_TrainerHudResultC2:
+	.byte $00
+WRAM_TrainerHudResultC3:
+	.byte $00
+WRAM_TrainerCurrInput:
+	.byte $00
+
 ; Persistent
 
 WRAM_OrgUser0:

@@ -3656,7 +3656,8 @@ CycleTwo:     lsr                        ;if branched here, divide by 2 to cycle
               jsr CyclePlayerPalette     ;do sub to cycle the palette (note: shares fire flower code)
               jmp SaveAB                 ;then skip this sub to finish up the game engine
 ClrPlrPal:    jsr ResetPalStar           ;do sub to clear player's palette bits in attributes
-SaveAB:       lda A_B_Buttons            ;save current A and B button
+SaveAB:       jsr Enter_TrainerOnFrame
+              lda A_B_Buttons            ;save current A and B button
               sta PreviousA_B_Buttons    ;into temp variable to be used on next frame
               lda #$00
               sta Left_Right_Buttons     ;nullify left and right buttons temp variable
@@ -13891,4 +13892,3 @@ NoHammer: ldx ObjectOffset         ;get original enemy object offset
 
 practice_callgate
 control_bank
-

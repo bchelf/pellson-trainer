@@ -80,6 +80,11 @@
 		jsr SetBankFromA
 		jmp PracticeTitleMenu
 
+	Enter_TrainerOnFrame:
+		lda #BANK_COMMON
+		jsr SetBankFromA
+		jmp TrainerOnFrame
+
 	Enter_UpdateFrameRule:
 		lda #BANK_COMMON
 		jsr SetBankFromA

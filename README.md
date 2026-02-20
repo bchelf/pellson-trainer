@@ -101,3 +101,6 @@ Have fun!
 
 ## Credits
 Sprites for peach shamelessly stolen from [Super Mario Bros.: Peach Edition](https://www.romhacking.net/hacks/1229)
+
+## Developer Docs
+- Trainer scene notes and verification checklist: `docs/trainer.md`

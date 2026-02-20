@@ -4252,6 +4252,8 @@ loc_7AC0:
 		jsr sub_7DF2
 loc_7AC3:
 
+		jsr Enter_TrainerOnFrame
+
 		lda A_B_Buttons
 		sta PreviousA_B_Buttons
 		lda #0

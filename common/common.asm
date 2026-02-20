@@ -46,6 +46,7 @@ NonMaskableInterrupt: ; Dummy
 	.export SetDefaultWRAM
 	.export FactoryResetWRAM
 	.export UpdateGameTimer
+	.export TrainerOnFrame
 
 practice_callgate
 control_bank
