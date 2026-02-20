@@ -2615,8 +2615,8 @@ TrainerHudLine2:
 		.byte $20, $A2, $19
 		.byte "H000 M000 S000 B000      "
 TrainerHudAttrWhite:
-		.byte $23, $C8, $06
-		.byte $00, $00, $00, $00, $00, $00
+		.byte $23, $C8, $08
+		.byte $AA, $AA, $AA, $AA, $AA, $AA, $AA, $AA
 TrainerHudStatsOnly:
 		.byte $20, $A2, $18
 		.byte "H000 M000 S000 B000 ----"
@@ -2667,7 +2667,7 @@ TrainerRedrawHud:
 		sta VRAM_Buffer1, y
 		inx
 		iny
-		cpx #$09
+		cpx #$0B
 		bne @copy_attrs
 		sty $02
 		ldx #0
