@@ -2614,6 +2614,12 @@ TrainerHudLine1:
 TrainerHudLine2:
 		.byte $20, $A2, $19
 		.byte "H000 M000 S000 B000      "
+TrainerHudAttrWhite:
+		.byte $23, $C8, $06
+		.byte $00, $00, $00, $00, $00, $00
+TrainerHudStatsOnly:
+		.byte $20, $A2, $18
+		.byte "H000 M000 S000 B000 ----"
 
 TrainerResultText:
 		.byte "-", "-", "-", "-"
@@ -2630,14 +2636,14 @@ TrainerMarkerAnimTiles:
 
 TrainerWriteThreeDigits:
 		sta $00
-		stx $02
+		stx $05
 		lda $00
 		jsr DivByTen
 		sta $01
 		txa
 		jsr DivByTen
 		sta $03
-		ldy $02
+		ldy $05
 		txa
 		sta VRAM_Buffer1, y
 		iny
@@ -2655,78 +2661,71 @@ TrainerRedrawHud:
 		rts
 @draw:
 		ldy VRAM_Buffer1_Offset
+		ldx #0
+@copy_attrs:
+		lda TrainerHudAttrWhite, x
+		sta VRAM_Buffer1, y
+		inx
+		iny
+		cpx #$09
+		bne @copy_attrs
 		sty $02
 		ldx #0
-@copy_line1:
-		lda TrainerHudLine1, x
+@copy_stats:
+		lda TrainerHudStatsOnly, x
 		sta VRAM_Buffer1, y
 		inx
 		iny
-		cpx #$19
-		bne @copy_line1
-		ldx #0
-@copy_line2:
-		lda TrainerHudLine2, x
-		sta VRAM_Buffer1, y
-		inx
-		iny
-		cpx #$1C
-		bne @copy_line2
+		cpx #$1B
+		bne @copy_stats
 		lda #0
 		sta VRAM_Buffer1, y
 		sty VRAM_Buffer1_Offset
 
-		ldy $02
-		lda TrainerDrill
+		ldx $02
 		clc
-		adc #1
-		sta VRAM_Buffer1+8, y
-		lda TrainerHoldFrames
-		sta VRAM_Buffer1+11, y
-		lda TrainerWindowFrames
-		sta VRAM_Buffer1+14, y
-
-		lda TrainerResult
-		asl
-		asl
-		tax
-		lda TrainerResultText, x
-		sta VRAM_Buffer1+20, y
-		lda TrainerResultText+1, x
-		sta VRAM_Buffer1+21, y
-		lda TrainerResultText+2, x
-		sta VRAM_Buffer1+22, y
-		lda TrainerResultText+3, x
-		sta VRAM_Buffer1+23, y
-
-		tya
-		clc
-		adc #$1C
-		tay
-		tya
-		clc
-		adc #1
+		txa
+		adc #4
 		tax
 		lda TrainerHits
 		jsr TrainerWriteThreeDigits
-		tya
+
+		ldx $02
 		clc
-		adc #6
+		txa
+		adc #9
 		tax
 		lda TrainerMisses
 		jsr TrainerWriteThreeDigits
-		tya
+
+		ldx $02
 		clc
-		adc #$0B
+		txa
+		adc #$0E
 		tax
 		lda TrainerStreak
 		jsr TrainerWriteThreeDigits
-		tya
+
+		ldx $02
 		clc
-		adc #$10
+		txa
+		adc #$13
 		tax
 		lda TrainerBestStreak
 		jsr TrainerWriteThreeDigits
+		ldx $02
+		lda TrainerResult
+		asl
+		asl
+		tay
+		lda TrainerResultText, y
+		sta VRAM_Buffer1+23, x
+		lda TrainerResultText+1, y
+		sta VRAM_Buffer1+24, x
+		lda TrainerResultText+2, y
+		sta VRAM_Buffer1+25, x
+		lda TrainerResultText+3, y
+		sta VRAM_Buffer1+26, x
 
 		lda TrainerFlags
 		and #(TRAINER_FLAG_HUD_DIRTY^$ff)
